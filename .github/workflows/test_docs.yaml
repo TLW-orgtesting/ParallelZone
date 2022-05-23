@@ -10,7 +10,6 @@ jobs:
     uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yaml@main
     
   build-documentation:
-    needs: pre-build-documentation
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,4 +18,4 @@ jobs:
     - name: Build documentation
       env:
         cmake_version: ${{ matrix.cmake_version }}
-      run: .github/workflows/scripts/build_docs.sh parallelzone_cxx_api
+      run: pwd
