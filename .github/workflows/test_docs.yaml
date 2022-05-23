@@ -18,4 +18,8 @@ jobs:
     - name: Build documentation
       env:
         cmake_version: ${{ matrix.cmake_version }}
-      run: pwd
+      run: |
+        cd .github/workflows
+        pwd
+        cd .github/workflows/scripts
+        pwd
