@@ -11,15 +11,10 @@ jobs:
     
   build-documentation:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        cmake_version: [3.16.3]
     steps:
+    - name: Obtain Source
+      uses: actions/checkout@v2
     - name: Build documentation
       env:
         cmake_version: ${{ matrix.cmake_version }}
-      run: |
-        cd .github/workflows
-        pwd
-        cd .github/workflows/scripts
-        pwd
+      run: .github/workflows/scripts/build_docs.sh parallelzone_cxx_api
