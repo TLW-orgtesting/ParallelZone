@@ -5,10 +5,17 @@ on:
     branches:
       - master
 
-jobs:    
+jobs:
+  pre-build-documentation:
+    uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yaml@main
+    
   build-documentation:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cmake_version: [3.16.3]
     steps:
-      - uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yaml@main
-      - name: Build documentation
-      - run: .github/workflows/scripts/build_docs.sh parallelzone_cxx_api
+    - name: Build documentation
+      env:
+        cmake_version: ${{ matrix.cmake_version }}
+      run: .github/workflows/scripts/build_docs.sh parallelzone_cxx_api
