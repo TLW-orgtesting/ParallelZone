@@ -8,6 +8,7 @@ jobs:
   pre-build-documentation:
     uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yaml@main
   build-documentation:
+    needs: pre-build-documentation
     runs-on: ubuntu-latest
     strategy:
       matrix:
