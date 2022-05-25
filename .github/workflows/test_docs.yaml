@@ -12,7 +12,7 @@ jobs:
         cmake_version: [3.16.3]
     steps:
     - name: pre-build-documentation
-      uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yaml@main
+      uses: TLW-orgtesting/ci-config@v1
     - name: Build documentation
       env:
         cmake_version: ${{ matrix.cmake_version }}
