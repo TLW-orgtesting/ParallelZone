@@ -12,7 +12,7 @@ jobs:
         cmake_version: [3.16.3]
     steps:
     - name: pre-build-documentation
-      uses: TLW-orgtesting/ci-config/action.yml@main
+      uses: TLW-orgtesting/ci-config/action.yml@v1.002
     - name: Build documentation
       env:
         cmake_version: ${{ matrix.cmake_version }}
