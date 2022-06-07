@@ -1,23 +1,11 @@
 name: Run clang-format Linter
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: DoozyX/clang-format-lint-action@v0.12
-      with:
-        source: 'include src tests'
-        extensions: 'hpp,cpp,ipp,h,c'
-        clangFormatVersion: 12
-        inplace: True
-    - uses: EndBug/add-and-commit@v4
-      with:
-        author_name: Clang Robot
-        author_email: robot@example.com
-        message: 'Committing clang-format changes'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: TLW-orgtesting/ci-config/.github/workflows/format_tmpl.yml@main
+    with: 
+      source: 'include src tests'
