@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reflection Design &mdash; parallelzone 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="prev" title="Serialization Design" href="serialization.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> parallelzone
+          </a>
+              <div class="version">
+                1.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developer Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Design Documentation</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="hashing.html">Hashing Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="serialization.html">Serialization Design</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Reflection Design</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#what-is-reflection">What is Reflection?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#why-do-we-need-reflection">Why Do We Need Reflection?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#reflection-considerations">Reflection Considerations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#reflection-implementations">Reflection Implementations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#reflection-strategy">Reflection Strategy</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">parallelzone</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Developer Documentation</a> &raquo;</li>
+          <li><a href="index.html">Design Documentation</a> &raquo;</li>
+      <li>Reflection Design</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/developer/design/reflection.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="reflection-design">
+<span id="id1"></span><h1>Reflection Design<a class="headerlink" href="#reflection-design" title="Permalink to this heading"></a></h1>
+<p>This page describes the considerations that went into the reflection API
+ParallelZone relies on.</p>
+<section id="what-is-reflection">
+<h2>What is Reflection?<a class="headerlink" href="#what-is-reflection" title="Permalink to this heading"></a></h2>
+<p>In object-oriented languages one distinguishes between the object’s type and the
+object’s state (i.e., class vs. instance of a class). While most coding
+scenarios focus on inspecting and manipulating an object’s state, there are
+times (usually when writing metafunctions) when the developer wants to inspect
+and manipulate the object’s class. A language is said to contain reflection if
+at runtime it is possible to inspect the object’s class, and to manipulate it.
+Admittedly, the manipulation part is usually limited in statically typed
+languages like C++.</p>
+<p>At the time of writing, C++ has no native support for reflection. That said,
+there are proposals to add reflection to the C++ language in an upcoming
+standard; however, it is likely that the earliest standard which could include
+reflection would be the one after C++23 (C++26?). Point being, reflection as
+part of the C++ language is a ways away.</p>
+</section>
+<section id="why-do-we-need-reflection">
+<h2>Why Do We Need Reflection?<a class="headerlink" href="#why-do-we-need-reflection" title="Permalink to this heading"></a></h2>
+<p>Strictly speaking we don’t need reflection, but the lack of reflection leads to
+a lot of boilerplate when adding meta-operations (e.g. printing, value
+comparison, hashing, and serialization). These operations all involve some form
+of “for each attribute, do…”.  Since C++ doesn’t include reflection, the usual
+solution is to hard-code the list of attributes into each operation. This works,
+but it makes switching say hashing or serialization libraries a pain.
+With reflection, we can keep interactions with such libraries in a single place.</p>
+</section>
+<section id="reflection-considerations">
+<h2>Reflection Considerations<a class="headerlink" href="#reflection-considerations" title="Permalink to this heading"></a></h2>
+<ul>
+<li><p>Need to reflect polymorphic classes</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Solution must be aware that a given object may actually have been declared
+as a more derived class than how it presently is being viewed, e.g., the
+function may be given a reference/pointer to a base class of the object</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to reflect classes that use PIMPL</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Only some of the state of a class is visible from the API exposed in the
+declaration.</p></li>
+<li><p>Reflection of the PIMPL will still occur, but it will only be visible from
+source files.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to reflect classes we don’t control the source for</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Third-party classes, such as those in the STL will need to have
+reflection added to them from outside of their definitions</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to reflect constructors</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Notable because constructors behave differently than other member functions</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="reflection-implementations">
+<h2>Reflection Implementations<a class="headerlink" href="#reflection-implementations" title="Permalink to this heading"></a></h2>
+<p>Below is a list of C++ libraries implementing reflection without outside tools
+such as schemas or code generation.</p>
+<ul>
+<li><p>Boost::Describe</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/boostorg/describe">https://github.com/boostorg/describe</a></p></li>
+<li><p>Members are registered with a macro</p></li>
+<li><p>Inspections return a list of “traits” classes</p></li>
+<li><p>The “traits” classes have members which are accessible at both compile and
+runtime.</p></li>
+<li><p>BSLv1</p></li>
+<li><p>4.8K stars and 289 watchers (Boost super project)</p></li>
+<li><p>30 stars and 6 watchers (Describe alone)</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Run Time Type Reflection (RTTR)</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/rttrorg/rttr">https://github.com/rttrorg/rttr</a></p></li>
+<li><p>More verbose registration process than Boost::Describe, but also more
+features</p></li>
+<li><p>Registration happens at runtime, so can’t be used at compile time</p></li>
+<li><p>MIT License</p></li>
+<li><p>Last commit August 2021</p></li>
+<li><p>2.1K stars and 89 watchers</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>CAMP</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/tegesoft/camp">https://github.com/tegesoft/camp</a></p></li>
+<li><p>MIT License</p></li>
+<li><p>Unmaintained</p></li>
+<li><p>81 stars and 17 watchers</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>CAMP (fork)</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/fw4spl-org/camp">https://github.com/fw4spl-org/camp</a></p></li>
+<li><p>Recommended fork of CAMP</p></li>
+<li><p>Abandoned</p></li>
+<li><p>4 stars and 5 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Ponder</p>
+<blockquote>
+<div><p>-<a class="reference external" href="https://github.com/billyquith/ponder">https://github.com/billyquith/ponder</a>
+- Another fork of CAMP, but then massively overhauled
+- API is very similar to RTTR
+- MIT License
+- Likely abandoned (Last commit Dec 2020).
+- 519 stars and 31 watchers</p>
+</div></blockquote>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Statistics and assessments were accurate as of March 2022. The author does
+not have any experience with any of these libraries and notes are based off
+quickly perusing documentation and source code.</p>
+</div>
+</section>
+<section id="reflection-strategy">
+<h2>Reflection Strategy<a class="headerlink" href="#reflection-strategy" title="Permalink to this heading"></a></h2>
+<p>Of the available libraries only Boost::Describe and RTTR are currently
+supported. AFAIK, RTTR is only runtime reflection. This is a notable problem as
+many applications of reflection (e.g., hashing and serialization) will require
+us to actually access the values in their native forms, which in turn means we
+need the types. Unfortunately, Boost::Describe lacks the ability to reflect
+constructors, and can not access attributes through getters/setters (needed for
+reflecting third party classes). There are open issues on Boost::Describe’s
+GitHub page for both of these issues, but it’s not clear if they are being
+worked on at the moment. Ultimately, this means that if we want reflection we
+have to roll our own solution.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="serialization.html" class="btn btn-neutral float-left" title="Serialization Design" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, NWChemEx Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

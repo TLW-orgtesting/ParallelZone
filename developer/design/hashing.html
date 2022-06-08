@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hashing Design &mdash; parallelzone 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Serialization Design" href="serialization.html" />
+    <link rel="prev" title="Design Documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> parallelzone
+          </a>
+              <div class="version">
+                1.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developer Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Design Documentation</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Hashing Design</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#what-is-hashing">What is Hashing?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#why-do-we-need-hashing">Why Do We Need Hashing?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#hashing-considerations">Hashing Considerations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#hashing-implementations">Hashing Implementations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#hashing-strategy">Hashing Strategy</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="serialization.html">Serialization Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="reflection.html">Reflection Design</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">parallelzone</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Developer Documentation</a> &raquo;</li>
+          <li><a href="index.html">Design Documentation</a> &raquo;</li>
+      <li>Hashing Design</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/developer/design/hashing.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="hashing-design">
+<span id="id1"></span><h1>Hashing Design<a class="headerlink" href="#hashing-design" title="Permalink to this heading"></a></h1>
+<p>At the moment hashing is not needed by ParallelZone, but will be needed
+downstream. Ultimately our recommendation is to use the hash function built into
+C++. This page exists mainly to document the considerations that went into this
+design decision. This documentation lives in ParallelZone (as opposed to
+downstream) mainly because the hash implementation is similar to how
+serialization is implemented (i.e., registering a class’s attributes) and our
+hope is that by considering it here we can reduce boilerplate between hashing
+and serialization.</p>
+<section id="what-is-hashing">
+<h2>What is Hashing?<a class="headerlink" href="#what-is-hashing" title="Permalink to this heading"></a></h2>
+<p>Hashing is the process of mapping an arbitrarily large data object to a
+relatively small, fixed-size data object. The fixed-size data object is known as
+a “hash value” or just “hash”. In practice, hashes are usually 32 byte integers
+(not to be confused with the commonly used 32 <em>bit</em> integer) which are usually
+represented as a 64 digit string of hexadecimal integers. The actual mapping
+from the input object to the hash is done by a “hash function”.</p>
+<p>Over the years a large number of hash functions have been proposed, each with
+their own properties. For our purposes we are most interested in hash functions
+which have the following properties:</p>
+<ul>
+<li><p>(approximately) injective</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>An injective function maps each unique input in the domain to a unique
+output in the function’s image</p></li>
+<li><p>A truly injective hash function is only possible if the size of the
+function’s image is greater than or equal to the size of the domain.</p></li>
+<li><p>In practice the domain of a hash function is almost always larger than the
+function’s image.</p></li>
+<li><p>An approximately injective hash function is one which, for all intents
+and purposes, is injective because it is extremely unlikely that any two
+elements of the domain will map to the same element of the image</p></li>
+<li><p>Exactly how unlikely hash collisions need to be in order for a hash
+function to be considered approximately injective varies with the
+application; however, hash collisions are so rare with most modern hash
+functions that they are usually approximately injective for most
+applications.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>efficiency</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Computing the hash should be relatively quick</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="why-do-we-need-hashing">
+<h2>Why Do We Need Hashing?<a class="headerlink" href="#why-do-we-need-hashing" title="Permalink to this heading"></a></h2>
+<p>We need hashing primarily as a means of quickly comparing instances of the
+same class. If applying a hash function to two objects of that class results in
+two different hashes, then the objects are guaranteed to be different. If
+instead the hash function maps the two objects to the same hash, and assuming
+the hash function is approximately injective, then it is extremely likely that
+the objects are the same. It is worth noting that these statements assume that
+hashing of the class is implemented correctly (e.g., hashing of an attribute is
+not overlooked).</p>
+<p>A related use case is related to hash tables. A hash table is a mapping from a
+hash to an object. The hash used as a key is typically derived from a different
+object than the value the hash maps to. Hash tables are typically used to speed
+up value look up or when  storing the actual keys is expensive.</p>
+</section>
+<section id="hashing-considerations">
+<h2>Hashing Considerations<a class="headerlink" href="#hashing-considerations" title="Permalink to this heading"></a></h2>
+<ul>
+<li><p>Approximately injective hash function</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Most of our applications work best when the hash function is approximately
+injective.</p></li>
+<li><p>Ultimately, it’s up to the developer to decide if the approximate
+injective-ness of the hash function suffices and/or to have a back up plan
+for collisions.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Can hash arbitrary classes</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>C++ lacks reflection so this can not be done automatically, rather the
+design needs to include some mechanism for the hash function to discover
+the attributes of a class.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Will need to hash distributed classes</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Again C++ has no reflection so this can not be done automatically.</p></li>
+<li><p>Likely will want two versions: a hash for just the local state and a hash
+for the entire distributed object.</p></li>
+<li><p>Implementing these hash scenarios will ultimately be up to the developer.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Will need to hash polymorphic classes</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>In some scenarios we only want to hash the visible state (state included by
+the type of the object plus state from all base classes)</p></li>
+<li><p>Other times we want a hash of the entire state (the visible state plus any
+state in classes derived from the current type)</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="hashing-implementations">
+<h2>Hashing Implementations<a class="headerlink" href="#hashing-implementations" title="Permalink to this heading"></a></h2>
+<p>Since C++11, the C++ standard libraries come with hash support. This section
+lists external C++ hashing implementations.</p>
+<ul>
+<li><p>boost::hash</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/boostorg/container_hash">https://github.com/boostorg/container_hash</a></p></li>
+<li><p>Boost has had <code class="docutils literal notranslate"><span class="pre">boost::hash</span></code> for a while.</p></li>
+<li><p>It appears that this is now part of the container hash component</p></li>
+<li><p>It also appears that container hash is only kept around for backwards
+compatibility purposes</p></li>
+<li><p>BSL v1</p></li>
+<li><p>That said the GitHub page appears to be under active development</p></li>
+<li><p>4.8K stars and 288 watchers (Boost super project)</p></li>
+<li><p>8 stars and 9 watchers (container_hash alone)</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>BPHash</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https:://github.com/bennybp/bphash">https:://github.com/bennybp/bphash</a></p></li>
+<li><p>Provides a consistent and portable (with some caveats) hash function</p></li>
+<li><p>C++ standard hash function is not guaranteed to be consistent between runs
+or portable</p></li>
+<li><p>BSD</p></li>
+<li><p>Abandoned</p></li>
+<li><p>3 stars and 5 watchers</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Hash-library</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/stbrumme/hash-library">https://github.com/stbrumme/hash-library</a></p></li>
+<li><p>Provides a number of different hash functions</p></li>
+<li><p>Requires the user to serialize their data in one of three ways: streaming
+the data into the hash, hashing a string representation, or hashing a
+vectorized format of the data</p></li>
+<li><p>Zlib License</p></li>
+<li><p>Last commit September 2021</p></li>
+<li><p>220 stars and 10 watchers</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+<div class="admonition-todo admonition" id="id2">
+<p class="admonition-title">Todo</p>
+<p>This list is unlikely to be an exhaustive set of all C++ hashing libraries
+and should be revisited at some to make it more exhaustive.</p>
+</div>
+</section>
+<section id="hashing-strategy">
+<h2>Hashing Strategy<a class="headerlink" href="#hashing-strategy" title="Permalink to this heading"></a></h2>
+<p>None of our current hashing use cases seem to justify using hashing beyond that
+afforded by the C++ standard library. So for now we simply rely on the hashing
+capabilities of the C++ standard library, extending it to our custom types.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Design Documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="serialization.html" class="btn btn-neutral float-right" title="Serialization Design" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, NWChemEx Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Serialization Design &mdash; parallelzone 1.0.0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Reflection Design" href="reflection.html" />
+    <link rel="prev" title="Hashing Design" href="hashing.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> parallelzone
+          </a>
+              <div class="version">
+                1.0.0
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Developer Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Design Documentation</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="hashing.html">Hashing Design</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Serialization Design</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#what-is-serialization">What is Serialization?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#why-do-we-need-serialization">Why Do We Need Serialization?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#serialization-considerations">Serialization Considerations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#serialization-implementations">Serialization Implementations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#serialization-strategy">Serialization Strategy</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="reflection.html">Reflection Design</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">parallelzone</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Developer Documentation</a> &raquo;</li>
+          <li><a href="index.html">Design Documentation</a> &raquo;</li>
+      <li>Serialization Design</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/developer/design/serialization.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="serialization-design">
+<span id="id1"></span><h1>Serialization Design<a class="headerlink" href="#serialization-design" title="Permalink to this heading"></a></h1>
+<section id="what-is-serialization">
+<h2>What is Serialization?<a class="headerlink" href="#what-is-serialization" title="Permalink to this heading"></a></h2>
+<p>In the context of object-oriented programming, serialization is the process of
+deconstructing an object’s state into a flat state that is suitable for storage
+and/or transmission. For most applications it is also important that it be
+possible to recreate the object’s initial state from the flattened state, a
+process known as deserializing. Unless specified otherwise, on this page, when
+we refer to “serialization” this includes both serializing and deserializing.</p>
+<p>C++ lacks reflection (the ability for a class to examine, introspect, and modify
+its own structure), which in turn means it is not possible for serialization to
+occur automatically for an arbitrary C++ class. Instead developers need to
+somehow write serialization routines for their objects. The exact requirements
+for the serialization routines depend on the library used for serialization, but
+in general it amounts to a recursive process where each class loops over its
+members and serializes/deserializes them (recursion terminating when fundamental
+C++ types are found).</p>
+</section>
+<section id="why-do-we-need-serialization">
+<h2>Why Do We Need Serialization?<a class="headerlink" href="#why-do-we-need-serialization" title="Permalink to this heading"></a></h2>
+<p>In ParallelZone we need serialization for transmitting objects. More
+specifically in order to be able send/receive objects we need to be able to
+serialize/deserialize them. We anticipate that downstream dependencies may want
+to piggy back off of the ParallelZone serialization infrastructure to store
+objects.</p>
+</section>
+<section id="serialization-considerations">
+<span id="id2"></span><h2>Serialization Considerations<a class="headerlink" href="#serialization-considerations" title="Permalink to this heading"></a></h2>
+<p>This section lists the points which were considered in devising our
+serialization solution.</p>
+<ul>
+<li><p>Support for C++ standard library types</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>While we could implement our own serialization routines for the classes
+found in the C++ standard library, many implementations already do so.</p></li>
+<li><p>Using a serialization library that already supports the standard library
+is a preferred, but not a deal breaker.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to serialize <code class="docutils literal notranslate"><span class="pre">std::shared_ptr</span></code></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Serializing <code class="docutils literal notranslate"><span class="pre">std::shared_ptr</span></code> entails not only serializing the object
+being pointed to, but also the shared semantics (reference count and who
+has access to the shared object)</p></li>
+<li><p>Deserializing should produce one copy of the instance and restore the
+shared semantics</p></li>
+<li><p>Technically falls under above consideration, but given that it’s more
+complicated than just serializing the state of the pointer we called it
+out.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to serialize polymorphic types</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Many of our classes rely on polymorphism for some sort of type-erasure</p></li>
+<li><p>Polymorphism means we may try to serialize via a pointer/reference to the
+base class</p></li>
+<li><p>Virtual serialization methods allow C++ to handle the polymorphism aspect
+automatically; however, many serialization libraries require the
+serialization methods to be templated on the object doing the serialization
+(so they can’t be virtual)</p></li>
+<li><p>Registration of derived classes is a common solution</p></li>
+<li><p>Can also write our own <code class="docutils literal notranslate"><span class="pre">Serializer</span></code> class so function doesn’t need to be
+templated.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Multiple serialization formats</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Serializing to binary is nice for transmitting and short-term storage of
+data.</p></li>
+<li><p>Human-readable formats are nice for long-term storage and inter-program
+communication.</p></li>
+<li><p>The ideal solution would have a mechanism to extend the formats it can
+serialize to</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to perform serialization on objects we do not control the source code for</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Need the option (even if it ends up being more expensive) to do
+serialization through an object’s public API</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Serializing distributed objects</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>ParallelZone encourages a SPMD coding philosophy</p></li>
+<li><p>SPMD means some of the objects we need to serialize will have distributed
+state</p></li>
+<li><p>Without reflection, there’s no general way to know how the object is
+distributed and the object developer will need to be involved in the
+process</p></li>
+<li><p>In some circumstances we will only want to serialize the local state,
+whereas in other cases we’ll want to serialize all of the state</p></li>
+<li><p>Serialization libraries are unlikely to help with this aspect</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Serializing objects with special save/load requirements</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Sometimes there’s more to serialization than just serializing the
+attributes of an object (e.g., needing to redistribute the data in a
+distributed object)</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="serialization-implementations">
+<h2>Serialization Implementations<a class="headerlink" href="#serialization-implementations" title="Permalink to this heading"></a></h2>
+<p>This section is a collection of the C++ serialization libraries for which we are
+aware. For each library we have provided some basic vitals and some notes. A
+detailed comparison of the more promising choices are given below.</p>
+<ul>
+<li><p>Cereal</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/USCiLab/cereal">https://github.com/USCiLab/cereal</a></p></li>
+<li><p>Support for serializing arbitrary C++ objects into multiple backends</p></li>
+<li><p>BSD License</p></li>
+<li><p>Looked abandon for a long time, but seems to have sprung back to life
+recently.</p></li>
+<li><p>3.1K stars and 152 watchers</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>MADNESS</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/m-a-d-n-e-s-s/madness">https://github.com/m-a-d-n-e-s-s/madness</a></p></li>
+<li><p>More or less a hand-rolled version of Boost serialization?</p></li>
+<li><p>Already in ParallelZone (largely b/c TiledArray uses it)</p></li>
+<li><p>GPLv2</p></li>
+<li><p>Active development</p></li>
+<li><p>125 stars and 30 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Boost</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/boostorg/serialization">https://github.com/boostorg/serialization</a></p></li>
+<li><p>Pre-C++11 was a widely used serialization library; however, it does not
+look like it kept up with the STL since then.</p></li>
+<li><p>BSLv1</p></li>
+<li><p>Active development</p></li>
+<li><p>4.8k stars and 288 watchers (for the Boost super project).</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Cista</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/felixguendling/cista">https://github.com/felixguendling/cista</a></p></li>
+<li><p>Provides a series of types that have reflection</p></li>
+<li><p>Serialization appears to work by building your classes with the reflective
+types.</p></li>
+<li><p>Appears to have support for writing your own serialization functions when
+you don’t use their types, but probably not the primary use case</p></li>
+<li><p>MIT License</p></li>
+<li><p>Active development.</p></li>
+<li><p>824 stars and 27 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>zpp serializer</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/eyalz800/serializer">https://github.com/eyalz800/serializer</a></p></li>
+<li><p>Conceptually appears similar to Boost/Cereal</p></li>
+<li><p>For polymorphism requires base type to inherit from a zpp class, which is
+problematic if you don’t control the class.</p></li>
+<li><p>MIT License</p></li>
+<li><p>Last commit December 2021.</p></li>
+<li><p>140 stars and 8 watchers.</p></li>
+</ul>
+</li>
+<li><p>zpp::bits</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/eyalz800/zpp_bits">https://github.com/eyalz800/zpp_bits</a></p></li>
+<li><p>Successor to zpp serializer</p></li>
+<li><p>Requires C++20</p></li>
+<li><p>MIT License</p></li>
+<li><p>Active development.</p></li>
+<li><p>161 stars and 2 watchers.</p></li>
+</ul>
+</li>
+<li><p>HPS</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/jl2922/hps">https://github.com/jl2922/hps</a></p></li>
+<li><p>Designed as a faster alternative to existing serialization libraries</p></li>
+<li><p>MIT License</p></li>
+<li><p>Active development</p></li>
+<li><p>55 stars and 7 watchers</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>cereal_fwd</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/breiker/cereal_fwd">https://github.com/breiker/cereal_fwd</a></p></li>
+<li><p>Fork of Cereal which adds forward compatibility and portability</p></li>
+<li><p>A slightly modified BSD license</p></li>
+<li><p>Likely abandoned (last commit September 2017)</p></li>
+<li><p>1 star and 1 watcher</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Protocol Buffers</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/protocolbuffers/protobuf">https://github.com/protocolbuffers/protobuf</a></p></li>
+<li><p>Requires you to write a schema for your class and then compile it.</p></li>
+<li><p>From what I can tell it basically builds reflection into the language</p></li>
+<li><p>Recommended as PIMPLs</p></li>
+<li><p>Looks like a modified form of the Apache v2 License (?)</p></li>
+<li><p>Active development.</p></li>
+<li><p>53.5K stars and 2.1K watchers.</p></li>
+</ul>
+</li>
+<li><p>Cap’n Proto</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/capnproto/capnproto">https://github.com/capnproto/capnproto</a></p></li>
+<li><p>Written by primary author of Protocol Buffers</p></li>
+<li><p>Marketed as a faster version of Protocol Buffers</p></li>
+<li><p>MIT License</p></li>
+<li><p>Active development</p></li>
+<li><p>8.8K stars and 318 watchers.</p></li>
+</ul>
+</li>
+<li><p>FlatBuffers</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/google/flatbuffers">https://github.com/google/flatbuffers</a></p></li>
+<li><p>Faster version of Protocol Buffers from Google</p></li>
+<li><p>Apache v2</p></li>
+<li><p>Active development.</p></li>
+<li><p>17.6K stars and 642 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>msgpack-c</p>
+<ul>
+<li><p><a class="reference external" href="https://github.com/msgpack/msgpack-c">https://github.com/msgpack/msgpack-c</a></p></li>
+<li><p>C++ library for serializing/deserializing to/from MessagePack format</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>MessagePack is a standardized binary serialization format</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Presumably the official C/C++ library for MessagePack</p></li>
+<li><p>BSL v1</p></li>
+<li><p>Active development</p></li>
+<li><p>2.4K stars and 160 watchers</p></li>
+</ul>
+</li>
+<li><p>msgpack11</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/ar90n/msgpack11">https://github.com/ar90n/msgpack11</a></p></li>
+<li><p>C++11 library which can process MessagePack</p></li>
+<li><p>MIT License</p></li>
+<li><p>Likely abandon (last commit July 2018)</p></li>
+<li><p>86 stars and 11 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>tser</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/KonanM/tser">https://github.com/KonanM/tser</a></p></li>
+<li><p>Specifically designed to be a small (in size) serialization library</p></li>
+<li><p>Behavior-wise similar to Boost/Cereal</p></li>
+<li><p>BSL v1</p></li>
+<li><p>Last commit May 2021</p></li>
+<li><p>91 Stars and 4 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Bitsery</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/fraillt/bitsery">https://github.com/fraillt/bitsery</a></p></li>
+<li><p>Cereal/Boost-like API, no macros</p></li>
+<li><p>MIT License</p></li>
+<li><p>Last commit October 2021</p></li>
+<li><p>666 stars and 27 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Yet Another Serialization (YAS)</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><a class="reference external" href="https://github.com/niXman/yas">https://github.com/niXman/yas</a></p></li>
+<li><p>Meant as a replacement for Boost</p></li>
+<li><p>BSL v1</p></li>
+<li><p>Active development</p></li>
+<li><p>519 stars and 37 watchers.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Avro</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/apache/avro">https://github.com/apache/avro</a></p></li>
+<li><p>Requires external schemas to serialize/deserialize</p></li>
+<li><p>Apache v2</p></li>
+<li><p>Active development</p></li>
+<li><p>2.1K stars and 106 watchers</p></li>
+</ul>
+</li>
+<li><p>Thrift</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/apache/thrift">https://github.com/apache/thrift</a></p></li>
+<li><p>Looks like it’s more worried about RPC than serialization directly</p></li>
+<li><p>Apache v2</p></li>
+<li><p>Active development</p></li>
+<li><p>9K stars and 463 watchers</p></li>
+</ul>
+</li>
+<li><p>s11n</p>
+<ul class="simple">
+<li><p>s11n.net</p></li>
+<li><p>It doesn’t appear to be possible to see the APIs without downloading a tar
+ball</p></li>
+<li><p>License is just listed as “public domain”</p></li>
+<li><p>Source hasn’t been updated since 2013 (website was updated in 2021)</p></li>
+<li><p>Likely considered feature complete</p></li>
+</ul>
+</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>As a disclaimer the author does not have experience with most of these
+libraries (aside from Cereal and Boost Serialization). In these cases
+assessments are made by looking at the documentation and may or may not
+accurately reflect the actual state of the library. Statistics pertaining to
+activity, stars, and watchers were accurate as of March 2022 and have likely
+changed since then.</p>
+</div>
+<section id="detailed-comparison">
+<h3>Detailed Comparison<a class="headerlink" href="#detailed-comparison" title="Permalink to this heading"></a></h3>
+<p>Based on the discussion in <a class="reference internal" href="#serialization-considerations"><span class="std std-ref">Serialization Considerations</span></a>, we have
+identified the following features we are looking for in a serialization library:</p>
+<p>Matureness</p>
+<blockquote>
+<div><p>The library should be mature (e.g. have a stable API, decent adoption, well
+documented). Without actually using all of the libraries, consulting their
+communities, this is admittedly a judgment call based off of first
+impressions and GitHub metrics (we were looking for more than 500 stars) than
+anything else.</p>
+</div></blockquote>
+<p>Compatibly Licensed</p>
+<blockquote>
+<div><p>We use Apache v2. The library must have a license which is compatible with
+that license. With the exception of MADNESS (and possibly s11n), all
+serialization libraries are licensed in a way we could use them directly.</p>
+</div></blockquote>
+<p>STL</p>
+<blockquote>
+<div><p>We would prefer to not have to roll our own serializations for classes found
+in the STL. Admittedly this is a moving target (new classes are added as new
+C++ standards come out); however, if a library supports classes added in
+C++11 (or newer) that’s good enough.</p>
+</div></blockquote>
+<p>shared_ptr</p>
+<blockquote>
+<div><p>Preserves <code class="docutils literal notranslate"><span class="pre">std::shared_ptr</span></code> semantics.</p>
+</div></blockquote>
+<p>OOP</p>
+<blockquote>
+<div><p>The library ideally will have some mechanism for supporting object
+hierarchies (allowing the serialization methods to be virtual counts as does
+registering relationships).</p>
+</div></blockquote>
+<p>Formats</p>
+<blockquote>
+<div><p>Should be possible to add additional serialization formats.</p>
+</div></blockquote>
+<p>Schemaless</p>
+<blockquote>
+<div><p>We do not want to maintain separate schema files for our classes. Typically
+said files need to be processed by a separate tool as part of the build
+process, which adds complexity and causes the build process to deviate from
+the usual procedure.</p>
+</div></blockquote>
+<p>3rd Party</p>
+<blockquote>
+<div><p>We will need to be able to serialize objects that we didn’t write and thus
+we won’t be able to modify the source of.</p>
+</div></blockquote>
+<p>The following table compares the serialization libraries on these features. For
+simplicity the table does not include libraries which are deemed to fail the
+“matureness” criteria (in most cases because there wasn’t enough interest).</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>STL</p></th>
+<th class="head"><p>shared_ptr</p></th>
+<th class="head"><p>OOP</p></th>
+<th class="head"><p>Formats</p></th>
+<th class="head"><p>Schemaless</p></th>
+<th class="head"><p>3rd Party</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Cereal</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-odd"><td><p>Boost</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-even"><td><p>Cista</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-odd"><td><p>Protocol Buffers</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+</tr>
+<tr class="row-even"><td><p>FlatBuffers</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-odd"><td><p>msgpack-c</p></td>
+<td><p>✅</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-even"><td><p>Bitsery</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-odd"><td><p>YAS</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>✅</p></td>
+</tr>
+<tr class="row-even"><td><p>Avro</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+<td><p>❌</p></td>
+<td><p>❌</p></td>
+<td><p>✅</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We marked a library as not having a feature if the documentation did not
+discuss the feature (or explicitly stated that such a feature does not
+exist). Conversely we said a library has a feature if the documentation
+discusses it. This means that it is possible that a library’s features may
+differ from those shown above based on the accuracy/completeness of its
+documentation.</p>
+</div>
+</section>
+</section>
+<section id="serialization-strategy">
+<h2>Serialization Strategy<a class="headerlink" href="#serialization-strategy" title="Permalink to this heading"></a></h2>
+<p>On the basis of the head-to-head serialization library comparisons, Cereal
+appears to be the clear winner. While Cereal is currently being actively
+developed, this is a somewhat recent development. More specifically there was
+an over two year gap in between v1.3.0 and v1.3.1. Given the popularity of the
+project, there’s reason to be optimistic that Cereal will continue to be
+supported into the future. Nonetheless, we feel it is prudent to ensure that
+our external serialization library is as decoupled from our stack as possible.</p>
+<p>Decoupling the external serialization library from our classes is difficult on
+account of the fact that C++ lacks reflection. Since there is no reflection,
+class developers must ultimately expose their members to the serialization
+library. The serialization library, for its part, must be able to accept members
+of arbitrary type. The former means the class must have the API the
+serialization library expects, whereas the latter means the serialization
+function must be templated (and thus can’t be virtual). It’s worth noting that
+hashing runs into the same problems, for the same reason.</p>
+<p>Section <a class="reference internal" href="reflection.html#reflection-design"><span class="std std-ref">Reflection Design</span></a> explores the possibility of adding reflection
+to our classes. The verdict there is that there does not appear to be any
+existing solution which meets our needs. This means we would have to write our
+own reflection library if we want to use it. While having reflection at our
+disposable would be extremely useful, adding it in a robust manner will likely
+require much more time than simply using Cereal directly. Our solution is thus
+to require that each object is serializable with Cereal directly.</p>
+<p>Cereal by itself already covers most of our considerations. The notable
+exception is the treatment of distributed objects. In particular we need a
+mechanism to be able to distinguish between when we want to serialize only the
+local state and when we want to serialize all of the state. For now our
+opinion is that serialization should by default only be the local state. When we
+need to serialize all of the state we will create a new Cereal archive and
+classes can dispatch based on whether they get that new archive or an already
+existing one.</p>
+<p>Below we briefly summarize how our solution addresses the considerations raised
+above.</p>
+<ul>
+<li><p>Support for C++ standard library types</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Handled by Cereal</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to serialize <code class="docutils literal notranslate"><span class="pre">std::shared_ptr</span></code></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Handled by Cereal</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to serialize polymorphic types</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Handled by Cereal</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Multiple serialization formats</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Cereal allows us to write new archives</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Need to perform serialization on objects we do not control the source code for</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Handled by Cereal</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Serializing distributed objects</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>For now serialization should only be the local piece of the object. A
+special archive will be written for when the entire state should be
+written to the archive. Classes can dispatch based on archive type.</p></li>
+</ul>
+</div></blockquote>
+</li>
+<li><p>Serializing objects with special save/load requirements</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Handled by Cereal</p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="hashing.html" class="btn btn-neutral float-left" title="Hashing Design" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="reflection.html" class="btn btn-neutral float-right" title="Reflection Design" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, NWChemEx Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
