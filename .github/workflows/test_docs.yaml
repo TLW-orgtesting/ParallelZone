@@ -6,14 +6,6 @@ on:
       - master
 jobs:
   build-documentation:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        cmake_version: [3.16.3]
-    steps:
-    - name: pre-build-documentation
-      uses: TLW-orgtesting/ci-config/action2@v1.007
-    - name: Build documentation
-      env:
-        cmake_version: ${{ matrix.cmake_version }}
-      run: .github/workflows/scripts/build_docs.sh parallelzone_cxx_api
+    uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yml@main
+    with:
+      repoName: parallelzone_cxx_api
