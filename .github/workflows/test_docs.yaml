@@ -6,6 +6,6 @@ on:
       - master
 jobs:
   build-documentation:
-    uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl_2.yml@main
+    uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yml@main
     with:
       repoName: parallelzone_cxx_api
