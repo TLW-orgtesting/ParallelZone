@@ -9,3 +9,4 @@ jobs:
     uses: TLW-orgtesting/ci-config/.github/workflows/test_docs_tmpl.yml@main
     with:
       repoName: parallelzone_cxx_api
+      dependencies: cmake doxygen sphinx
